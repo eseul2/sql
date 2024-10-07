@@ -31,3 +31,5 @@ select * from member;
 -- 데이터 삭제 DML구문
 delete from member where member_name= '머라이어';
 
+
+

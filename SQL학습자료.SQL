@@ -686,7 +686,7 @@ select A.membername from member A left join board B on A.midx=B.midx where B.sub
 select A.membername from member A inner join board B on A.membername =B.subject group by recom;
 where B.recom =(select max(recom) from board);
 
-select max(recom) from board
+select max(recom) from board;
 
 -- 데이터 넣어보기 bidx 3 나는 없나봄 0행이 업데이트 됐다고 떴습니다.
 update board set recom =3 where bidx=3;
@@ -724,4 +724,177 @@ add CONSTRAINT board_reply_bidx_FK FOREIGN key(bidx) REFERENCES board(bidx);
 
 insert into REPLY(rsubject,rcontents,writer,rip,midx,bidx)
 values('궁금','알려주세요','삼삼','1111.222.333.444',105,11);
+
+
+
+select * from board;
+
+-- originbidx 컬럼 필요 : 원글의 그룹을 나타내주는 기능
+alter table board
+add originbidx int null;
+
+-- depth 컬럼 필요 : 그룹의 순서를 나타내주는 기능
+alter table board
+add depth int null;
+
+-- level_ 컬럼 필요 : 답변 단계를 나타내주는 기능
+alter table board
+add level_ int null;
+
+
+
+
+-- 컬럼 순서 바꾸기
+alter table board
+modify column originbidx int after bidx;    -- bidx 뒷편에 두겠다. (after)
+
+alter table board
+modify column depth int after originbidx;    -- originbidx 뒷편에 두겠다. (after)
+
+
+alter table board
+modify column level_ int after depth;    -- depth 뒷편에 두겠다. (after)
+
+
+-- origin숫자는 bidx와 같이 나머지는 아직 0으로 설정하는 코드
+update board set originbidx=bidx, depth=0, level_=0;
+
+
+-- 게시판 조회목록 쿼리
+select * from board order by originbidx desc, depth asc;
+
+-- 9번째 글에 누군가 답변을 달았다.
+-- 답변달기 쿼리
+update board set bidx
+
+insert into board (originbidx,depth,level_,subject,contents,writer,midx)
+values(14,1,1,'14번글 답변','ㄴ14번글 답변 내용','답변자','111');
+
+
+-- 또다른 답변달기 (원글번호의 순서보다 큰것들은 순서를 +1 업데이트하고 그 사이에 답변글을 입력한다.)
+-- originbidx 14번에 관한 글에 depth가 0보다 큰 애들을 숫자 1을 증가시키겠다.
+update board SET depth=depth+1 where originbidx =14 and depth > 0;
+
+insert into board (originbidx,depth,level_,subject,contents,writer,midx)
+values(14,1,1,'ㄴ14번글 두번째  답변','ㄴ14번글 두번째 답변 내용','답변자','101');
+
+select * from board order by originbidx desc, depth asc;
+
+-- 답변하기 쿼리
+set autocommit = 0;   -- 수동 커밋으로 전환
+update board SET depth=depth+1 where originbidx =답변 하려는 원글번호  and depth > 원글의 순서;
+
+insert into board (originbidx,depth,level_,subject,contents,writer,midx)
+values(원글번호,원글순서의 +1,원글 답변 단계+1,'답변제목','답변내용','닉네임','회원번호');
+commit;   -- updqte insert 일괄진행
+set autocommit = 1;  -- 자동커밋으로 전환
+
+
+-- 수정하기 쿼리
+update board set subject ='수정할 제목 내용',contents='수정할 내용',writer='작성자'
+modifyday = NOW() where bidx=수정하려는 글 번호;
+
+
+-- 수정날짜 입력 컬럼 생성하기
+alter table board
+add modifyday datetime null;
+
+-- 삭제하기 쿼리
+update board set delyn='Y',modifyday=NOW() where bidx=삭제하려는 글 번호;
+
+-- 내용보기 쿼리
+select * from board where bidx = 내용을 보려고 하는 글번호;
+
+-- 목록쿼리
+select * from board where delyn ='N' order by originbidx desc, depth asc;
+
+-- 새글 입력 쿼리
+set autocimmit = 0; -- 수동 커밋 설정
+
+insert into board (originbidx,depth,level_,subject,contents,writer,midx)
+values(null,0,0,'제목','내용','작성자',회원번호);
+
+update board set originbidx=(select max(bidx) from board)
+where bidx = (select max(bidx) from board);
+commit;
+set autocommit = 1; -- 다시 자동으로 커밋 변경
+
+
+-- 페이징 목록쿼리
+select * from board where delyn ='N' order by originbidx desc, depth asc limit 0,15; -- 0번 행부터 15개를 가져와라
+																      -- limit (페이지번호-1)*15,15
+
+
+
+-- board 더미 데이터 만들어보기
+create procedure boardproc (
+param_name varchar(20) -- 파라미터(매개) 변수 선언
+)
+BEGIN
+	declare i int; -- 변수선언 타입과 같이
+	set i=1; -- 변수의 초기값 담기
+	while i<=1000 do -- 반복문 사용하기
+
+	insert into board(originbidx,depth,level_,subject,contents,writer,midx)
+	values(null,0,0,concat(param_name,i),concat(param_name,i),concat(param_name,i),103);
+	set i = i+1;
+	END while; -- 반복문 끝
+END
+
+-- 프로시저 삭제
+drop  procedure boardproc;
+
+
+-- 프로시저 호출~
+call boardproc ('게시판');
+
+update board SET originbidx=bidx;
+
+select * from board;
+
+select * from board where delyn ='N' order by originbidx desc, depth asc limit 0,15;
+
+
+
+-- 댓글테이블 샘플데이터 입력
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('댓글제목','댓글내용','댓글작성자',105,11);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('궁금','궁금하다고','댓글작성자2',111,14);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('댓글일까?','댓글맞음','댓글작성자3',117,16);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('궁금해여','사실 아님','댓글작성자4',108,19);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('윗댓이상','쟤 이상해','댓글작성자5',130,20);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('내말이','왜저래','댓글작성자6',132,18);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('공부가 힘든가봐요','이해해요','댓글작성자7',112,13);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('궁금합니다','알려줘요','댓글작성자8',123,15);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('저도 몰라요','나도 몰라','댓글작성자9',120,12);
+insert into reply(rsubject,rcontents,writer,midx,bidx)
+values('난 알아요','알려드림','댓글작성자10',154,17);
+
+select * from member;
+select * from board;
+select * from reply;
+
+-- 게시글 17번에 대한 댓글을 쓴 사람들의 아이디를 출려갷주세요
+-- 1. board 테이블과 reply테이블을 조인해서 합친다.
+select *
+from board A
+join reply B on A.bidx=B.bidx
+join member C on C.midx=B.midx
+where A.writer ='행인'
+;
+
+-- 4. 검증 - 샘플검사 or 전수검사
+
+update reply set rsubject -'악플' where ridx=7;
+
+-- 댓글중에 악플이라고 써있는 게시글을 모두 찾아서 출력하고 그 댓글을 쓴 사람의 이름과 연락처를 출력해주세요
+select membername,memberphone from member where reply
 
