@@ -729,6 +729,8 @@ values('궁금','알려주세요','삼삼','1111.222.333.444',105,11);
 
 select * from board;
 
+
+
 -- originbidx 컬럼 필요 : 원글의 그룹을 나타내주는 기능
 alter table board
 add originbidx int null;
@@ -763,10 +765,8 @@ update board set originbidx=bidx, depth=0, level_=0;
 -- 게시판 조회목록 쿼리
 select * from board order by originbidx desc, depth asc;
 
--- 9번째 글에 누군가 답변을 달았다.
+-- 14번째 글에 누군가 답변을 달았다.
 -- 답변달기 쿼리
-update board set bidx
-
 insert into board (originbidx,depth,level_,subject,contents,writer,midx)
 values(14,1,1,'14번글 답변','ㄴ14번글 답변 내용','답변자','111');
 
@@ -882,8 +882,10 @@ select * from member;
 select * from board;
 select * from reply;
 
--- 게시글 17번에 대한 댓글을 쓴 사람들의 아이디를 출려갷주세요
+-- 행인이라는 작성자가 쓴 게시글의 댓글을 쓴 사람들의 아이디를 출력해주세요
 -- 1. board 테이블과 reply테이블을 조인해서 합친다.
+-- 2. 합쳐진 두 테이블과 member테이블을 조인한다
+-- 3. where 조건식을 적용한다
 select *
 from board A
 join reply B on A.bidx=B.bidx
@@ -897,4 +899,82 @@ update reply set rsubject -'악플' where ridx=7;
 
 -- 댓글중에 악플이라고 써있는 게시글을 모두 찾아서 출력하고 그 댓글을 쓴 사람의 이름과 연락처를 출력해주세요
 select membername,memberphone from member where reply
+
+
+select * from member order by midx desc;
+
+select * from member where memberid='' or 1='1' and memberpw='1234';
+
+
+-- sql 인젝션 공격 해킹
+입력값을 아이디 ' or 1='1 -- 이거 해킹 공격임 그래서 아이디를 입력할 때 '이걸 못쓰게 설정해야함
+
+-- 컬럼 이름 변경
+-- pwd에서 pw로 바꾸겠다 pwd에서 ~
+alter table member
+change column memberpw memberpwd varchar(100);
+
+
+-- 회원들이 11번 게시글에 대해서 댓글 각각 몇개씩 작성했는지 출력후 주세요
+-- 의도 : 회원들의 정보는 모두 나와야 하고 (member를 left join해서) 그에 맞는 값이 따로 나와야 한다.
+-- 쿼리 결과를 볼 때 기대값을 미리 알고 있어야 쿼리를 짤 수 있다. 잘 생각하고 파악해라!!
+-- 3개 join 연습하기
+
+-- 1. 조인을 한다.
+-- 2. 데이터를 본다.
+-- 3. 그룹을 짓는다.
+-- 4. 집계함수를 사용해서 갯수를 뽑아낸다
+
+
+-- 괄호 안에 where을 작성한 이유는 바깥의 회원의 몇백개의 조건을 조회하는 것보다 2건의 조건만 조회를 하는것이 데이터 속도가 빠르니까 안에다가 넣었다.
+-- 테이블에 존재하는 모든 회원에 대해, 해당 회원이 작성한 댓글 수를 출력한다. 각 회원이 해당 게시글에 댓글을 작성했는지 여부와 관계없이 left join(왼쪽은member 모두 출력) 이라 회원은 모두 출력됨.
+-- COUNT(ridx): ridx 값(댓글 ID)을 카운트하여 해당 회원이 특정 게시글에 작성한 댓글 수를 계산합니다. LEFT JOIN으로 연결된 결과이므로, 댓글이 없는 회원의 경우 COUNT(ridx)는 0이 됩니다.
+2. FROM member A
+member 테이블을 기준으로 쿼리를 수행합니다. 여기서 A는 member 테이블의 별칭(alias)입니다. A.midx는 회원의 고유 ID를 나타냅니다.
+3. LEFT JOIN
+member 테이블과 서브쿼리 D를 midx를 기준으로 LEFT JOIN합니다.
+LEFT JOIN은 member 테이블을 기준으로 하므로, 회원이 댓글을 작성하지 않았더라도 모든 회원이 결과에 포함됩니다.
+서브쿼리에서 반환된 데이터는 특정 게시글(bidx = 11)에 대해 회원이 작성한 댓글 정보입니다.
+4. 서브쿼리 설명 (D)
+sql
+코드 복사
+(SELECT C.midx, C.ridx, B.bidx
+ FROM board B
+ JOIN reply C ON B.bidx = C.bidx
+ WHERE B.bidx = 11)
+이 서브쿼리는 board와 reply 테이블을 JOIN하여 특정 게시글(bidx = 11)에 대한 댓글 정보를 가져옵니다.
+JOIN reply C ON B.bidx = C.bidx: board 테이블의 bidx와 reply 테이블의 bidx를 기준으로 두 테이블을 JOIN합니다.
+WHERE B.bidx = 11: 게시글 번호가 11인 경우에 대해서만 데이터를 가져옵니다.
+결과적으로, 이 서브쿼리는 게시글 번호 11에 대한 댓글 정보를 가져오고, 댓글을 작성한 회원의 midx, 댓글 ID(ridx), 게시글 ID(bidx)를 반환합니다.
+5. GROUP BY A.midx
+A.midx로 그룹화하여, 각 회원이 작성한 댓글 수를 계산합니다.
+COUNT(ridx)를 통해 각 회원이 특정 게시글(bidx = 11)에 작성한 댓글 수를 구할 수 있습니다. 댓글이 없는 회원의 경우 COUNT(ridx)는 0이 됩니다.
+쿼리의 동작 방식
+member 테이블: 모든 회원 정보를 가져옵니다.
+LEFT JOIN: 서브쿼리에서 게시글 번호 11에 대한 댓글 정보를 가져와, midx를 기준으로 회원과 댓글 정보를 결합합니다. 댓글을 작성하지 않은 회원도 포함됩니다.
+COUNT(ridx): 각 회원이 해당 게시글에 작성한 댓글 수를 계산합니다. 댓글을 작성하지 않은 회원의 경우 COUNT(ridx)는 0이 됩니다.
+결과
+각 회원(midx)에 대해 해당 회원이 게시글 번호 11에 작성한 댓글 수를 출력합니다. 댓글이 없는 회원도 모두 표시됩니다.
+
+
+
+1. select A.midx,count(ridx) from member A left join
+  (select C.midx,C.ridx,B.bidx from board B join reply C on B.bidx=C.bidx where B.bidx=11) D
+   on A.midx=D.midx
+   group by A.midx;
+
+   -- 다른 방법
+2. select A.midx, count(B.ridx) from member A left join (select * from reply where bidx=11) B
+on A.midx=B.midx group by A.midx;
+
+
+3.
+ select A.midx, count(AA.ridx) from member A left join
+ (select C.midx, C.ridx from board B join reply C on B.bidx=C.bidx
+where B.bidx=11) AA on A.midx = AA.midx group by A.midx;
+
+
+
+
+select * from board
 
